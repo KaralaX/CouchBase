@@ -15,7 +15,41 @@ public class BatchOperation
             password: pwd
             ).GetAwaiter().GetResult();
 
-        _cluster.WaitUntilReadyAsync(TimeSpan.FromSeconds().GetAwaiter().GetResult();
+        _cluster.WaitUntilReadyAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+    }
+
+    public async Task<IEnumerable<IGetResult>> SequentialRead(int noOperations, int testId)
+    {
+        using var bucket = await _cluster.BucketAsync("travel-sample");
+
+        var collection = await bucket.DefaultCollectionAsync();
+
+        var results = new List<IGetResult>();
+
+        for (int i = 0; i < noOperations; i++)
+        {
+            var res = await collection.GetAsync($"test_{testId}_{i}", options => options.Timeout(TimeSpan.FromSeconds(5)));
+
+            results.Add(res);
+        }
+
+        return results;
+    }
+    public async Task SequentialWrite(int noOperations, int testId, object document)
+    {
+        using var bucket = await _cluster.BucketAsync("travel-sample");
+
+        var collection = await bucket.DefaultCollectionAsync();
+
+        for (int i = 0; i < noOperations; i++)
+        {
+            var key = $"test_{testId}_{i}";
+
+            var result = await collection.UpsertAsync(key, document, options =>
+            {
+                options.Timeout(TimeSpan.FromSeconds(5));
+            });
+        }
     }
 
     public async Task<IEnumerable<IGetResult>> BulkRead(int noOperations, int testId)
@@ -30,7 +64,7 @@ public class BatchOperation
 
         for (int i = 0; i < noOperations; i++)
         {
-            var task = collection.GetAsync($"test_{testId}_{i}");
+            var task = collection.GetAsync($"test_{testId}_{i}", options => options.Timeout(TimeSpan.FromSeconds(5)));
 
             tasks.Add(task);
 
@@ -57,7 +91,7 @@ public class BatchOperation
         return results;
     }
 
-    public async Task BulkWrite(int noOperations, int testId, dynamic record)
+    public async Task BulkWrite(int noOperations, int testId, object record)
     {
         using var bucket = await _cluster.BucketAsync("travel-sample");
 
@@ -69,7 +103,11 @@ public class BatchOperation
         {
             var task = collection.UpsertAsync(
                 $"test_{testId}_{i}",
-                record
+                record,
+                options =>
+                {
+                    options.Timeout(TimeSpan.FromSeconds(5));
+                }
                 );
 
             tasks.Add(task);

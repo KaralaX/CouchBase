@@ -15,18 +15,115 @@ public class BatchOperation_Specs
     {
         _operations = new BatchOperation(
             conn: "couchbase://localhost",
-            user: "admin",
-            pwd: "CRU6Hh8Tfn@kVg"
+            user: "Administrator",
+            pwd: "g3JRuZPng!K_XT"
             );
         _helper = helper;
     }
 
+    [Theory]
+    [InlineData(1000, 1)]
+    [InlineData(1000, 2)]
+    [InlineData(1000, 3)]
+    [InlineData(1000, 4)]
+
+    [InlineData(10000, 5)]
+    [InlineData(10000, 6)]
+    [InlineData(10000, 7)]
+    [InlineData(10000, 8)]
+
+    [InlineData(100000, 9)]
+    [InlineData(100000, 10)]
+    [InlineData(100000, 11)]
+    [InlineData(100000, 12)]
+
+    [InlineData(1000000, 13)]
+    [InlineData(1000000, 14)]
+    [InlineData(1000000, 15)]
+    [InlineData(1000000, 16)]
+    public async Task SequentialReadSpecs(int noOperations, int testId)
+    {
+        //Arrange
+
+        //Act
+        var stopwatch = new Stopwatch();
+
+        stopwatch.Start();
+
+        var result = await _operations.SequentialRead(noOperations, testId);
+
+        stopwatch.Stop();
+
+        //Assert
+        Assert.NotNull(result);
+
+        Assert.Equal(noOperations, result.Count());
+
+        _helper.WriteLine($"SequentialRead took {stopwatch.ElapsedMilliseconds} ms to execute {noOperations} reads");
+    }
+
+
+    [Theory]
+    [InlineData(1000, 1, 1)]
+    [InlineData(1000, 128, 2)]
+    [InlineData(1000, 512, 3)]
+    [InlineData(1000, 1024, 4)]
+
+    [InlineData(10000, 1, 5)]
+    [InlineData(10000, 128, 6)]
+    [InlineData(10000, 512, 7)]
+    [InlineData(10000, 1024, 8)]
+
+    [InlineData(100000, 1, 9)]
+    [InlineData(100000, 128, 10)]
+    [InlineData(100000, 512, 11)]
+    [InlineData(100000, 1024, 12)]
+
+    [InlineData(1000000, 1, 13)]
+    [InlineData(1000000, 128, 14)]
+    [InlineData(1000000, 512, 15)]
+    [InlineData(1000000, 1024, 16)]
+    public async Task SequentialWriteSpecs(int noOperations, int payloadSize, int testId)
+    {
+        //Arrange
+        dynamic document = InitializeDocument(payloadSize);
+
+        //Act
+        var stopwatch = new Stopwatch();
+
+        stopwatch.Start();
+
+        await _operations.SequentialWrite(noOperations, testId, document);
+
+        stopwatch.Stop();
+
+        //Assert        
+        _helper.WriteLine($"SequentialWrite took {stopwatch.ElapsedMilliseconds} ms to execute {noOperations} writes with payload of {payloadSize} bytes");
+    }
+
+
+
 
     [Theory]
     [InlineData(1000, 1)]
+    [InlineData(1000, 2)]
+    [InlineData(1000, 3)]
+    [InlineData(1000, 4)]
+
     [InlineData(10000, 5)]
+    [InlineData(10000, 6)]
+    [InlineData(10000, 7)]
+    [InlineData(10000, 8)]
+
     [InlineData(100000, 9)]
+    [InlineData(100000, 10)]
+    [InlineData(100000, 11)]
+    [InlineData(100000, 12)]
+
     [InlineData(1000000, 13)]
+    [InlineData(1000000, 14)]
+    [InlineData(1000000, 15)]
+    [InlineData(1000000, 16)]
     public async Task BulkReadSpecs(int noOperations, int testId)
     {
         //Arrange
@@ -178,7 +275,5 @@ public class BatchOperation_Specs
             };
         }
         return document;
-
-
     }
 }
