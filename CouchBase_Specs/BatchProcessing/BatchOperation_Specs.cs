@@ -15,8 +15,8 @@ public class BatchOperation_Specs
     {
         _operations = new BatchOperation(
             conn: "couchbase://localhost",
-            user: "Administrator",
-            pwd: "g3JRuZPng!K_XT"
+            user: "admin",
+            pwd: "CRU6Hh8Tfn@kVg"
             );
         _helper = helper;
     }
@@ -182,6 +182,44 @@ public class BatchOperation_Specs
         //Assert        
         _helper.WriteLine($"BulkWrite took {stopwatch.ElapsedMilliseconds} ms to execute {noOperations} writes with payload of {payloadSize} bytes");
     }
+    [Theory]
+    [InlineData(1000, 1, 1)]
+    [InlineData(1000, 128, 2)]
+    [InlineData(1000, 512, 3)]
+    [InlineData(1000, 1024, 4)]
+
+    [InlineData(10000, 1, 5)]
+    [InlineData(10000, 128, 6)]
+    [InlineData(10000, 512, 7)]
+    [InlineData(10000, 1024, 8)]
+
+    [InlineData(100000, 1, 9)]
+    [InlineData(100000, 128, 10)]
+    [InlineData(100000, 512, 11)]
+    [InlineData(100000, 1024, 12)]
+
+    [InlineData(1000000, 1, 13)]
+    [InlineData(1000000, 128, 14)]
+    [InlineData(1000000, 512, 15)]
+    [InlineData(1000000, 1024, 16)]
+    public async Task BulkWriteSqlSpecs(int noOperations, int payloadSize, int testId)
+    {
+        //Arrange
+        dynamic document = InitializeDocument(payloadSize);
+
+        //Act
+        var stopwatch = new Stopwatch();
+
+        stopwatch.Start();
+
+        await _operations.BulkWriteSQL(noOperations, testId, document);
+
+        stopwatch.Stop();
+
+        //Assert        
+        _helper.WriteLine($"BulkWrite took {stopwatch.ElapsedMilliseconds} ms to execute {noOperations} writes with payload of {payloadSize} bytes");
+    }
+
 
     private dynamic InitializeDocument(int payloadSize)
     {

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.13.10" />
     <PackageReference Include="CouchbaseNetClient" Version="3.4.13" />
   </ItemGroup>
 

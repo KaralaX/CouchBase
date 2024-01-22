@@ -1,5 +1,9 @@
 ﻿using Couchbase;
 using Couchbase.KeyValue;
+using System.Text;
+using System.Text.Json;
+
+
 
 namespace CouchBase.BatchProcessing;
 
@@ -14,8 +18,11 @@ public class BatchOperation
             username: user,
             password: pwd
             ).GetAwaiter().GetResult();
+    }
 
-        _cluster.WaitUntilReadyAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+    public async Task InitializeAsync()
+    {
+        await _cluster.WaitUntilReadyAsync(TimeSpan.FromSeconds(5));
     }
 
     public async Task<IEnumerable<IGetResult>> SequentialRead(int noOperations, int testId)
@@ -28,9 +35,14 @@ public class BatchOperation
 
         for (int i = 0; i < noOperations; i++)
         {
-            var res = await collection.GetAsync($"test_{testId}_{i}", options => options.Timeout(TimeSpan.FromSeconds(5)));
-
-            results.Add(res);
+            try
+            {
+                var res = await collection.GetAsync($"test_{testId}_{i}", options => options.Timeout(TimeSpan.FromSeconds(5)));
+                results.Add(res);
+            }
+            catch (Exception)
+            {
+            }
         }
 
         return results;
@@ -43,12 +55,17 @@ public class BatchOperation
 
         for (int i = 0; i < noOperations; i++)
         {
-            var key = $"test_{testId}_{i}";
-
-            var result = await collection.UpsertAsync(key, document, options =>
+            try
             {
-                options.Timeout(TimeSpan.FromSeconds(5));
-            });
+                var result = await collection.UpsertAsync($"test_{testId}_{i}", document, options =>
+                {
+                    options.Timeout(TimeSpan.FromSeconds(5));
+                });
+            }
+            catch (Exception)
+            {
+            }
+
         }
     }
 
@@ -70,7 +87,13 @@ public class BatchOperation
 
             if (tasks.Count >= 512)
             {
-                await Task.WhenAll(tasks);
+                try
+                {
+                    await Task.WhenAll(tasks);
+                }
+                catch (Exception)
+                {
+                }
 
                 foreach (var t in tasks)
                 {
@@ -80,8 +103,13 @@ public class BatchOperation
                 tasks.Clear();
             }
         }
-
-        await Task.WhenAll(tasks);
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception)
+        {
+        }
 
         foreach (var task in tasks)
         {
@@ -114,12 +142,100 @@ public class BatchOperation
 
             if (tasks.Count >= 512)
             {
-                await Task.WhenAll(tasks);
+                try
+                {
+                    await Task.WhenAll(tasks);
+                }
+                catch (Exception)
+                {
+                }
 
                 tasks.Clear();
             }
         }
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (Exception)
+        {
+        }
+    }
+    public async Task BulkReadSQL(int noOperations, int testId)
+    {
+        using var bucket = await _cluster.BucketAsync("travel-sample");
 
-        await Task.WhenAll(tasks);
+        var scope = await bucket.DefaultScopeAsync();
+
+        var count = 0;
+
+        var builder = new StringBuilder("INSERT INTO _default (KEY, VALUE) VALUES ");
+
+        for (int i = 0; i < noOperations; i++)
+        {
+            if (count++ >= 512)
+            {
+                await scope.QueryAsync<dynamic>(
+                    statement: builder.ToString(),
+                    options =>
+                    {
+                        options.PipelineBatch(1000);
+                        options.Timeout(TimeSpan.FromSeconds(10));
+                        options.MaxServerParallelism(1000);
+                    }
+                );
+            }
+
+            builder.AppendLine();
+        }
+    }
+    public async Task BulkWriteSQL(int noOperations, int testId, object record)
+    {
+        using var bucket = await _cluster.BucketAsync("travel-sample");
+
+        var scope = await bucket.DefaultScopeAsync();
+
+        var count = 0;
+
+        var payload = JsonSerializer.Serialize(record);
+
+        var builder = new StringBuilder("UPSERT INTO _default (KEY, VALUE) VALUES ");
+
+        for (int i = 0; i < noOperations; i++)
+        {
+            if (count > 0)
+            {
+                builder.Append(", ");
+            }
+            builder.AppendLine($"(\"test_{testId}_{i}\", {payload})");
+
+            if (++count >= 50)
+            {
+                await scope.QueryAsync<dynamic>(
+                    statement: builder.ToString(),
+                    options =>
+                    {
+                        options.PipelineBatch(500);
+                        options.Timeout(TimeSpan.FromSeconds(20));
+                    }
+                );
+                count = 0;
+
+                builder.Clear();
+                builder.Append("UPSERT INTO _default (KEY, VALUE) VALUES ");
+            }
+        }
+
+        if (count > 0)
+        {
+            await scope.QueryAsync<dynamic>(
+                    statement: builder.ToString().Trim(','),
+                    options =>
+                    {
+                        options.PipelineBatch(500);
+                        options.Timeout(TimeSpan.FromSeconds(100));
+                    }
+                );
+        }
     }
 }
