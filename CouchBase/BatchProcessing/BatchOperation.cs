@@ -85,7 +85,7 @@ public class BatchOperation
 
             tasks.Add(task);
 
-            if (tasks.Count >= 512)
+            if (tasks.Count >= 500)
             {
                 try
                 {
@@ -140,7 +140,7 @@ public class BatchOperation
 
             tasks.Add(task);
 
-            if (tasks.Count >= 512)
+            if (tasks.Count >= 500)
             {
                 try
                 {
@@ -189,53 +189,22 @@ public class BatchOperation
             builder.AppendLine();
         }
     }
-    public async Task BulkWriteSQL(int noOperations, int testId, object record)
+    public async Task BulkWriteSQL(int noOperations, int testId, string statement)
     {
         using var bucket = await _cluster.BucketAsync("travel-sample");
 
         var scope = await bucket.DefaultScopeAsync();
 
-        var count = 0;
-
-        var payload = JsonSerializer.Serialize(record);
-
-        var builder = new StringBuilder("UPSERT INTO _default (KEY, VALUE) VALUES ");
-
         for (int i = 0; i < noOperations; i++)
         {
-            if (count > 0)
-            {
-                builder.Append(", ");
-            }
-            builder.AppendLine($"(\"test_{testId}_{i}\", {payload})");
-
-            if (++count >= 50)
-            {
-                await scope.QueryAsync<dynamic>(
-                    statement: builder.ToString(),
-                    options =>
-                    {
-                        options.PipelineBatch(500);
-                        options.Timeout(TimeSpan.FromSeconds(20));
-                    }
-                );
-                count = 0;
-
-                builder.Clear();
-                builder.Append("UPSERT INTO _default (KEY, VALUE) VALUES ");
-            }
-        }
-
-        if (count > 0)
-        {
             await scope.QueryAsync<dynamic>(
-                    statement: builder.ToString().Trim(','),
-                    options =>
-                    {
-                        options.PipelineBatch(500);
-                        options.Timeout(TimeSpan.FromSeconds(100));
-                    }
-                );
+                statement: statement,
+                options =>
+                {
+                    options.PipelineBatch(500);
+                    options.Timeout(TimeSpan.FromSeconds(20));
+                }
+            );
         }
     }
 }

@@ -1,9 +1,12 @@
 ﻿using BenchmarkDotNet.Attributes;
+using System.Text;
+using System.Text.Json;
 
 namespace CouchBase.BatchProcessing;
 [IterationCount(1)]
+[WarmupCount(1)]
 [MemoryDiagnoser]
-public class BenchMarkBulkOperation
+public class BenchMarkBulkSqlOperation
 {
     BatchOperation operation;
 
@@ -103,31 +106,20 @@ public class BenchMarkBulkOperation
                 break;
         }
 
-        await operation.BulkWrite(noOperations, TestId, document);
-    }
-    [Benchmark]
-    public async Task BulkRead()
-    {
-        await operation.InitializeAsync();
+        var payload = JsonSerializer.Serialize(document);
 
-        var noOperations = 0;
-        switch (TestId)
+        var builder = new StringBuilder("UPSERT INTO _default (KEY, VALUE)");
+
+        for (int i = 0; i < 500; i++)
         {
-            case <= 4:
-                noOperations = 1000;
-                break;
-            case <= 8:
-                noOperations = 10000;
-                break;
-            case <= 12:
-                noOperations = 100000;
-                break;
-            case <= 16:
-                noOperations = 1000000;
-                break;
+            if (i > 0)
+            {
+                builder.Append(", ");
+            }
+            builder.AppendLine($"VALUES (\"test_{TestId}_{i}\", {payload})");
         }
 
-        await operation.BulkRead(noOperations, TestId);
+        await operation.BulkWriteSQL(noOperations/500, TestId, builder.ToString());
     }
     private dynamic InitializeDocument(int payloadSize)
     {

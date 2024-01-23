@@ -1,6 +1,9 @@
 ﻿using Couchbase.KeyValue;
 using CouchBase.BatchProcessing;
+using Microsoft.CodeAnalysis;
 using System.Diagnostics;
+using System.Text;
+using System.Text.Json;
 using Xunit.Abstractions;
 
 namespace CouchBase_Specs.BatchProcessing;
@@ -170,6 +173,7 @@ public class BatchOperation_Specs
         //Arrange
         dynamic document = InitializeDocument(payloadSize);
 
+        await _operations.InitializeAsync();
         //Act
         var stopwatch = new Stopwatch();
 
@@ -183,36 +187,49 @@ public class BatchOperation_Specs
         _helper.WriteLine($"BulkWrite took {stopwatch.ElapsedMilliseconds} ms to execute {noOperations} writes with payload of {payloadSize} bytes");
     }
     [Theory]
-    [InlineData(1000, 1, 1)]
-    [InlineData(1000, 128, 2)]
-    [InlineData(1000, 512, 3)]
-    [InlineData(1000, 1024, 4)]
+    [InlineData(1000, 1, 500, 1)]
+    [InlineData(1000, 128, 500, 2)]
+    [InlineData(1000, 512, 500, 3)]
+    [InlineData(1000, 1024, 500, 4)]
 
-    [InlineData(10000, 1, 5)]
-    [InlineData(10000, 128, 6)]
-    [InlineData(10000, 512, 7)]
-    [InlineData(10000, 1024, 8)]
+    [InlineData(10000, 1, 500, 5)]
+    [InlineData(10000, 128, 500, 6)]
+    [InlineData(10000, 512, 500, 7)]
+    [InlineData(10000, 1024, 500, 8)]
 
-    [InlineData(100000, 1, 9)]
-    [InlineData(100000, 128, 10)]
-    [InlineData(100000, 512, 11)]
-    [InlineData(100000, 1024, 12)]
+    [InlineData(100000, 1, 500, 9)]
+    [InlineData(100000, 128, 500, 10)]
+    [InlineData(100000, 512, 500, 11)]
+    [InlineData(100000, 1024, 500, 12)]
 
-    [InlineData(1000000, 1, 13)]
-    [InlineData(1000000, 128, 14)]
-    [InlineData(1000000, 512, 15)]
-    [InlineData(1000000, 1024, 16)]
-    public async Task BulkWriteSqlSpecs(int noOperations, int payloadSize, int testId)
+    [InlineData(1000000, 1, 500, 13)]
+    [InlineData(1000000, 128, 500, 14)]
+    [InlineData(1000000, 512, 500, 15)]
+    [InlineData(1000000, 1024, 500, 16)]
+    public async Task BulkWriteSqlSpecs(int noOperations, int payloadSize, int batchSize, int testId)
     {
         //Arrange
         dynamic document = InitializeDocument(payloadSize);
+
+        var payload = JsonSerializer.Serialize(document);
+
+        var builder = new StringBuilder("UPSERT INTO _default (KEY, VALUE)");
+
+        for (int i = 0; i < batchSize; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(", ");
+            }
+            builder.AppendLine($"VALUES (\"test_{testId}_{i}\", {payload})");
+        }
 
         //Act
         var stopwatch = new Stopwatch();
 
         stopwatch.Start();
 
-        await _operations.BulkWriteSQL(noOperations, testId, document);
+        await _operations.BulkWriteSQL(noOperations / batchSize, testId, builder.ToString());
 
         stopwatch.Stop();
 
